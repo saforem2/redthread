@@ -86,7 +86,12 @@ Precedence is `--theme` → `RT_THEME` → the saved choice → detection.
 
 Inside the app, `T` toggles light/dark and remembers it, so the next launch
 skips detection entirely. The choice is stored per workspace in
-`notes.json`; deleting the `theme` key there goes back to auto.
+`notes.json`.
+
+`--theme=auto` is an override like the other two, not the absence of one:
+it re-detects *and* forgets a saved choice, so it's the way back to
+detection after pressing `T`. (Deleting the `theme` key from `notes.json`
+does the same thing.)
 
 Both palettes carry the same nine tints and nine highlight colors under the
 same names, so switching themes never disturbs a note's saved colors.

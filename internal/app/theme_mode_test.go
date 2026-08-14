@@ -95,22 +95,82 @@ func TestResolveThemeAutoFallsBackToDark(t *testing.T) {
 
 func TestThemeModeFromEnv(t *testing.T) {
 	for _, tc := range []struct {
-		env  string
-		flag string
-		want ThemeMode
+		env          string
+		flag         string
+		want         ThemeMode
+		wantExplicit bool
 	}{
-		{"", "", ThemeAuto},
-		{"light", "", ThemeLight},
-		{"dark", "", ThemeDark},
-		{"garbage", "", ThemeAuto},    // invalid env is ignored, not fatal
-		{"dark", "light", ThemeLight}, // an explicit flag beats the env
-		{"light", "dark", ThemeDark},
-		{"", "light", ThemeLight},
+		{"", "", ThemeAuto, false},
+		{"light", "", ThemeLight, true},
+		{"dark", "", ThemeDark, true},
+		{"garbage", "", ThemeAuto, false},   // invalid env is ignored, not fatal
+		{"dark", "light", ThemeLight, true}, // an explicit flag beats the env
+		{"light", "dark", ThemeDark, true},
+		{"", "light", ThemeLight, true},
+
+		// "auto" typed by hand is an override — it asks to re-detect — and
+		// must be distinguishable from saying nothing at all.
+		{"", "auto", ThemeAuto, true},
+		{"", "AUTO", ThemeAuto, true},
+		{"auto", "", ThemeAuto, true},
+		{"light", "auto", ThemeAuto, true}, // the flag wins, and means re-detect
+
+		// A malformed flag falls through to the env rather than being read
+		// as a request for auto.
+		{"light", "garbage", ThemeLight, true},
+		{"", "garbage", ThemeAuto, false},
 	} {
-		got := themeModeFrom(tc.flag, tc.env)
-		if got != tc.want {
-			t.Errorf("themeModeFrom(flag=%q, env=%q) = %v; want %v",
-				tc.flag, tc.env, got, tc.want)
+		got, explicit := themeModeFrom(tc.flag, tc.env)
+		if got != tc.want || explicit != tc.wantExplicit {
+			t.Errorf("themeModeFrom(flag=%q, env=%q) = (%v, %v); want (%v, %v)",
+				tc.flag, tc.env, got, explicit, tc.want, tc.wantExplicit)
 		}
+	}
+}
+
+// The bug this guards: `--theme=auto` returned ThemeAuto, which Run() read
+// as "no override" and replaced with the saved theme — so an explicitly
+// requested re-detect silently kept using the saved light/dark choice.
+func TestExplicitAutoOverridesASavedTheme(t *testing.T) {
+	ws := &Workspace{}
+	ws.SetThemeMode(ThemeLight) // the user pressed T at some point
+
+	// resolveMode mirrors what Run() does with themeModeFrom's results.
+	resolveMode := func(flagVal, envVal string) ThemeMode {
+		mode, explicit := themeModeFrom(flagVal, envVal)
+		if !explicit {
+			return ws.ThemeMode()
+		}
+		return mode
+	}
+
+	if got := resolveMode("auto", ""); got != ThemeAuto {
+		t.Errorf("--theme=auto with a saved light choice = %v; want auto (re-detect)", got)
+	}
+	if got := resolveMode("", "auto"); got != ThemeAuto {
+		t.Errorf("RT_THEME=auto with a saved light choice = %v; want auto (re-detect)", got)
+	}
+	// With nothing specified, the saved choice still wins.
+	if got := resolveMode("", ""); got != ThemeLight {
+		t.Errorf("no flag or env = %v; want the saved light choice", got)
+	}
+	// And an explicit dark still beats the saved light.
+	if got := resolveMode("dark", ""); got != ThemeDark {
+		t.Errorf("--theme=dark with a saved light choice = %v; want dark", got)
+	}
+}
+
+// An explicit auto must also clear the saved value, so the *next* launch
+// detects too rather than reverting.
+func TestExplicitAutoClearsTheSavedTheme(t *testing.T) {
+	ws := &Workspace{}
+	ws.SetThemeMode(ThemeLight)
+
+	mode, explicit := themeModeFrom("auto", "")
+	if explicit {
+		ws.SetThemeMode(mode)
+	}
+	if ws.Theme != "" {
+		t.Errorf("after --theme=auto, saved theme = %q; want it cleared so the next run detects", ws.Theme)
 	}
 }
