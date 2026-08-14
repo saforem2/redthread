@@ -55,14 +55,25 @@ func ParseThemeMode(s string) (ThemeMode, error) {
 // RT_THEME environment variable, in that order of precedence. An
 // unparseable value is ignored rather than fatal — a typo in a shell rc
 // should not stop the board from opening.
-func themeModeFrom(flagVal, envVal string) ThemeMode {
-	if m, err := ParseThemeMode(flagVal); err == nil && flagVal != "" {
-		return m
+//
+// The second return distinguishes "the user asked for auto" from "the user
+// said nothing". Both yield ThemeAuto, but only the former should override
+// a theme saved in the workspace: `--theme=auto` means *re-detect*, and
+// without this the saved value would silently win.
+func themeModeFrom(flagVal, envVal string) (mode ThemeMode, explicit bool) {
+	if flagVal != "" {
+		if m, err := ParseThemeMode(flagVal); err == nil {
+			return m, true
+		}
+		// A malformed flag falls through to the env var, then to the saved
+		// choice — it must not read as an explicit request for auto.
 	}
-	if m, err := ParseThemeMode(envVal); err == nil {
-		return m
+	if envVal != "" {
+		if m, err := ParseThemeMode(envVal); err == nil {
+			return m, true
+		}
 	}
-	return ThemeAuto
+	return ThemeAuto, false
 }
 
 // hasDarkBackground asks the terminal for its background color. On a

@@ -22,7 +22,7 @@ func Run() {
 
 	if themeFlag != "" {
 		if _, err := ParseThemeMode(themeFlag); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: %v — using auto\n", err)
+			fmt.Fprintf(os.Stderr, "warning: %v — ignoring it\n", err)
 		}
 	}
 
@@ -42,15 +42,19 @@ func Run() {
 	// which beats the value saved in notes.json, which beats auto-detection.
 	// The detection itself writes an OSC 11 query to the terminal, so it has
 	// to happen before Bubble Tea takes over the screen.
-	mode := themeModeFrom(themeFlag, os.Getenv("RT_THEME"))
-	if mode == ThemeAuto {
+	//
+	// `--theme=auto` is an override in its own right: it asks to re-detect
+	// and to forget any saved choice. Only an absent flag and env var defer
+	// to what the workspace saved.
+	mode, explicit := themeModeFrom(themeFlag, os.Getenv("RT_THEME"))
+	if !explicit {
 		mode = ws.ThemeMode()
 	}
-	light := ResolveTheme(mode)
-	ApplyTheme(light)
+	ApplyTheme(ResolveTheme(mode))
 
-	// Remember an explicit choice so the next run does not have to probe.
-	if mode != ThemeAuto {
+	// Record the choice: an explicit light/dark so the next run skips the
+	// probe, an explicit auto so the next run performs it.
+	if explicit {
 		ws.SetThemeMode(mode)
 	}
 
