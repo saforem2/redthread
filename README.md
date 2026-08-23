@@ -32,6 +32,9 @@ strings, smooth zoom, and multiple named boards you can switch between.
   on a few.
 - **3D zoom-to-edit** — a smooth scale + lift + shadow animation that
   settles into a card with a live textarea.
+- **Optional vim bindings** — `--vim` turns the note card modal: normal /
+  insert / visual, the motions and operators you actually use. Off by
+  default. See [Vim mode](#vim-mode).
 - **9 paper tints + 9 highlight colors + 8 text styles** (Unicode math
   alphabets: plain, bold, italic, bold-italic, script, fraktur,
   double-struck, monospace).
@@ -142,6 +145,44 @@ distinct. `>` / `<` cycle, `B` creates and drops you straight into rename,
 | `esc` | close + save with reverse transition |
 | `ctrl+s` | save without closing |
 
+With `--vim`, the card is modal — see [Vim mode](#vim-mode).
+
+## Vim mode
+
+Off by default. Turn it on for a run, or for good:
+
+```bash
+redthread --vim           # this run (and remembered afterwards)
+export RT_VIM=1           # for a shell rc or tmux config
+```
+
+The card then opens in normal mode, and the footer shows which mode you
+are in. What's implemented:
+
+| | |
+|---|---|
+| motions | `h j k l`, `w b e`, `0 $`, `gg G`, arrow keys |
+| counts | `3l`, `2dd`, `5G`, and so on |
+| insert | `i a I A o O`, `esc` back to normal |
+| delete | `x`, `dd`, `D`, `dw`, `d$`, `d0` |
+| change | `cw`, `cc`, `C` |
+| yank/put | `yy`, `p`, `P`, and `dd` fills the same register (so `ddp` swaps lines) |
+| visual | `v`, then a motion, then `d` / `c` / `y` |
+
+`esc` in normal mode places the note back on the board, the same as `esc`
+without vim enabled. `ctrl+s`, `ctrl+y`, `ctrl+p`, and `ctrl+e` keep their
+meanings in every mode — they are app controls, not editing.
+
+Anything not in that table is ignored rather than approximated. A key that
+silently does something *close* to what vim would do is worse than one
+that does nothing.
+
+The behavior above was checked against real vim: `internal/app/vim_test.go`
+contains a table of buffers and key sequences whose expected results were
+produced by running them through `vim -Nu NONE -es`. That turned up five
+bugs which hand-written tests had happily agreed with, including `dw` on a
+line's last word deleting nothing and `cw` swallowing the following space.
+
 ## Data
 
 Notes live at `$XDG_DATA_HOME/redthread/notes.json`, defaulting to
@@ -213,6 +254,8 @@ internal/app/
   anim.go           zoom transition timeline + easings
   edit.go           canvas-drawn edit frame + bubbles/textarea splice
   menu.go           font-picker popup
+  vim.go            modal editing state machine (buffer + cursor)
+  vimedit.go        renders the vim buffer into the card
   storage.go        XDG JSON persistence + v3→v4 migration
 
 docs/

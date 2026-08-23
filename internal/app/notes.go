@@ -253,6 +253,10 @@ type Workspace struct {
 	Boards     []*Board   `json:"boards"`
 	ActiveIdx  int        `json:"activeIdx,omitempty"`
 	Background Background `json:"background,omitempty"`
+
+	// Vim enables modal editing in the note card. Off by default and
+	// omitted when off, so nobody's muscle memory changes without asking.
+	Vim bool `json:"vim,omitempty"`
 }
 
 // CorkOn reports whether the cork texture overlay should be drawn.
