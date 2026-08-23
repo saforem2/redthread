@@ -858,6 +858,11 @@ func (m model) handleBoardKey(key string) (tea.Model, tea.Cmd) {
 			m.setToast(why)
 			return m, nil
 		}
+		// Snapshot before suspending: by the time the editor's result
+		// comes back the note has already changed, so this is the last
+		// point where the pre-edit text still exists. An edit that turns
+		// out to change nothing coalesces harmlessly.
+		m.mutate("edit in $EDITOR")
 		return m, cmd
 	case "r":
 		if n := m.board.Selection(); n != nil {
@@ -1123,6 +1128,7 @@ func (m model) handleEditKey(msg tea.KeyMsg, key string) (tea.Model, tea.Cmd) {
 			m.setToast(why)
 			return m, nil
 		}
+		m.mutate("edit in $EDITOR")
 		// Leave the card: re-entering with the external result already
 		// applied is clearer than splicing it into the live textarea.
 		m.mode = ModeBoard

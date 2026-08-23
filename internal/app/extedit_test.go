@@ -379,3 +379,47 @@ func TestRealEditorFailureLeavesTheNote(t *testing.T) {
 		t.Errorf("body = %q; want it untouched", n.Body)
 	}
 }
+
+// --- integration with undo -------------------------------------------
+//
+// $EDITOR and the undo stack were developed independently; this case only
+// exists once both are present. An external edit changes the note like
+// any other mutation, so `u` has to reach it — which means snapshotting
+// before the editor runs, since by the time its result arrives the note
+// has already changed.
+func TestExternalEditIsUndoable(t *testing.T) {
+	m := newTestModel(t)
+	n := m.board.Selection()
+	if n == nil {
+		t.Fatal("no selection")
+	}
+	origTitle, origBody := n.Title, n.Body
+
+	script := filepath.Join(t.TempDir(), "ed.sh")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("VISUAL", "")
+	t.Setenv("EDITOR", script)
+
+	// The real key path, so the snapshot happens where the app takes it.
+	m = pressKey(t, m, "e")
+
+	path := filepath.Join(t.TempDir(), "note.md")
+	if err := os.WriteFile(path, []byte("edited outside\n\nnew body\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	next, _ := m.Update(externalEditDoneMsg{noteID: n.ID, path: path, cleanup: func() {}})
+	m = next.(model)
+
+	if got := m.findNote(n.ID); got.Title != "edited outside" {
+		t.Fatalf("external edit did not apply: %q", got.Title)
+	}
+
+	m = pressKey(t, m, "u")
+	got := m.findNote(n.ID)
+	if got.Title != origTitle || got.Body != origBody {
+		t.Errorf("undo after an external edit gave %q / %q; want %q / %q",
+			got.Title, got.Body, origTitle, origBody)
+	}
+}
