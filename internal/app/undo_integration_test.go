@@ -466,3 +466,58 @@ func TestViewStateChangesDoNotPushHistory(t *testing.T) {
 		t.Errorf("view-state changes pushed %d undo entries; want 0", got-before)
 	}
 }
+
+// --- cross-feature: preferences are not board content -----------------
+//
+// Theme and vim are workspace preferences, not undoable content. The
+// snapshot is a whole-struct copy of the Workspace, so both ride along
+// inside it; applyRestoredWorkspace must not write them back, or undoing
+// a note edit would silently reset the user's palette or editing mode.
+
+func TestUndoPreservesTheThemePreference(t *testing.T) {
+	t.Cleanup(func() { ApplyTheme(false) })
+	m := newTestModel(t)
+
+	m.workspace.SetThemeMode(ThemeDark)
+	m = pressKey(t, m, "n") // snapshot taken while dark
+
+	m.workspace.SetThemeMode(ThemeLight)
+	m = pressKey(t, m, "u")
+	if got := m.workspace.ThemeMode(); got != ThemeLight {
+		t.Errorf("undo resurrected the snapshotted theme (%v); want the live light", got)
+	}
+
+	// And the other direction.
+	m = pressKey(t, m, "n")
+	m.workspace.SetThemeMode(ThemeDark)
+	m = pressKey(t, m, "u")
+	if got := m.workspace.ThemeMode(); got != ThemeDark {
+		t.Errorf("undo reset the theme to %v; want dark", got)
+	}
+}
+
+func TestUndoPreservesTheVimPreference(t *testing.T) {
+	m := newTestModel(t)
+	m.workspace.Vim = false
+	m = pressKey(t, m, "n") // snapshot taken with vim off
+
+	m.workspace.Vim = true
+	m = pressKey(t, m, "u")
+	if !m.workspace.Vim {
+		t.Error("undo cleared the vim preference")
+	}
+}
+
+// The background is a preference too, and it is explicitly carried across
+// rather than omitted — so it needs its own guard.
+func TestUndoPreservesTheBackground(t *testing.T) {
+	m := newTestModel(t)
+	m.workspace.Background = Background{Cork: true}
+	m = pressKey(t, m, "n")
+
+	m.workspace.Background = Background{Cork: false, Color: "#101010"}
+	m = pressKey(t, m, "u")
+	if m.workspace.Background.Cork || m.workspace.Background.Color != "#101010" {
+		t.Errorf("undo reverted the background to %+v; want the live value", m.workspace.Background)
+	}
+}
