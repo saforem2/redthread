@@ -389,7 +389,6 @@ internal/app/
   history.go        undo/redo stack over workspace snapshots
   vim.go            modal editing state machine (buffer + cursor)
   vimedit.go        renders the vim buffer into the card
-  storage.go        XDG JSON persistence + v3→v4 migration
 
 docs/
   screenshot.png
